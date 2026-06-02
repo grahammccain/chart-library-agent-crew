@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Secrets / keys — never commit
+*.pem
+*.key
+
+# Raw eval/result dumps — regenerate locally with `python run.py --out results.json`
+results.json
+results_*.json
+real_ab*.json
+crew_smoke.json
+*_chaining_*.json

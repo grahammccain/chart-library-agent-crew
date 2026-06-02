@@ -1,0 +1,17 @@
+# Extra deps for the framework PORTS (kept out of the repo-root requirements so the
+# core harness + framework-free crew.py stay dependency-light).
+#
+# The ports REUSE crew.py's validated nodes verbatim, so they also need whatever the
+# repo root needs. Install both:
+#     pip install -r requirements.txt          # repo root: anthropic (+ harness deps)
+#     pip install -r ports/requirements.txt    # this file: the framework itself
+#
+# OFFLINE runs (no --live) make no model calls - crew.py's canned path runs, and each
+# port also CONSTRUCTS its framework objects - so you can verify a port for free. A
+# --live run additionally needs that framework's model key (Anthropic / OpenAI).
+#
+# Each port hard-imports only its own framework; install just the one(s) you want to try.
+
+langgraph>=0.2          # ports/langgraph_crew.py        (--live: ANTHROPIC_API_KEY)
+openai-agents>=0.1      # ports/openai_agents_crew.py    (--live: OPENAI_API_KEY)
+claude-agent-sdk>=0.2   # ports/claude_agent_crew.py     (--live: ANTHROPIC_API_KEY + SDK runtime)
