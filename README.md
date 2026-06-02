@@ -1,16 +1,19 @@
-# chartlibrary agent-crew — Phase 0 validation harness
+# chartlibrary agent-crew — reference research crew + eval harness
 
-A tiny, honest test rig that answers one question before we build or market
-anything:
+A reference research crew — plus the tiny, honest eval harness that justifies it —
+built around one question:
 
 > **When a neutral markets orchestrator is given a realistic question and a bench
 > of competing specialist tools, does it actually reach for chartlibrary at the
 > right times — and does having it produce a better-grounded answer?**
 
-This is **Phase 0** of the open-source "research crew" reference app. It is *not*
-the demo app and *not* a framework. It is the measurement that gates the rest:
-if the orchestrator ignores our node, or doesn't answer better with it, we want
-to know that **before** writing a polished multi-agent repo and posting it around.
+This repo is **two things**: the runnable reference crew (`crew.py` + three
+framework ports) that wires our node alongside the other specialists, **and** the
+honest eval harness that justified building it — the measurement proving a neutral
+orchestrator actually reaches for chartlibrary at the right times, and answers
+better when it does. The harness ships alongside the crew so you can re-run the
+receipt yourself. It is *not* a framework: our node drops into whatever
+orchestrator you already use.
 
 ## Why this exists
 
@@ -153,11 +156,83 @@ Defaults (all overridable): `recall_overall >= 0.80`, `over-fire (fpr) <= 0.15`,
 lift bar. `--require-live` refuses to certify synthetic mock numbers, so a free
 per-PR mock run proves the plumbing without ever masquerading as validation.
 
-`.github/workflows/eval-gate.yml` wires both: a **free mock** plumbing job on
-every push/PR, and a **paid live** validation job on manual dispatch only (needs
+An example GitHub Actions workflow (below) wires both: a **free mock** plumbing job
+on every push/PR, and a **paid live** validation job on manual dispatch only (needs
 the `ANTHROPIC_API_KEY` repo secret). There is deliberately no schedule — every
 paid run stays a human decision. `test_gate.py` self-checks the gate's pass/fail
-edges (run `python test_gate.py`).
+edges (run `python test_gate.py`). Copy the workflow below to
+`.github/workflows/eval-gate.yml` to enable CI.
+
+<details>
+<summary>example <code>.github/workflows/eval-gate.yml</code></summary>
+
+```yaml
+name: chartlibrary eval gate
+
+# Two gates over the eval harness:
+#   * plumbing   - FREE mock run on every push/PR. Proves the harness + metrics +
+#                  gate all execute end-to-end. Its numbers are SYNTHETIC (not a
+#                  verdict) - gate.py treats a mock file as a plumbing check only.
+#   * validation - PAID live run, MANUAL trigger only (workflow_dispatch). Real
+#                  Anthropic tool-selection; enforces the GO thresholds on real
+#                  numbers via `gate.py --require-live`. Needs the ANTHROPIC_API_KEY
+#                  repo secret.
+#
+# Deliberately NO `schedule:` - live runs spend money, so each paid run stays a
+# human decision (matches the repo's cost-gate posture). Add a schedule later only
+# if a recurring public receipt is wanted.
+#
+# NOTE: paths assume the harness lives at the repo root (current layout). If you
+# move it under a subdir, set `working-directory:` on the jobs.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  plumbing:
+    name: plumbing (free, mock, synthetic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: gate self-check
+        run: python test_gate.py
+      - name: run harness (mock, free)
+        run: python run.py --mode mock --desc v2 --loadout both --ab --out results.json
+      - name: gate (plumbing only)
+        run: python gate.py results.json
+
+  validation:
+    name: validation (paid, live, real numbers)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: run harness (live, paid)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python run.py --mode live --desc v2 --loadout 7 --ab --yes --out results.json
+      - name: gate (enforce live thresholds)
+        run: python gate.py results.json --require-live
+      - name: upload receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-receipt
+          path: results.json
+```
+
+</details>
 
 ## Files
 
@@ -170,8 +245,7 @@ edges (run `python test_gate.py`).
 | `harness.py` | neutral orchestrator loop; mock + live backends behind one `Turn` |
 | `evaluate.py` | selection metrics + with/without answer-lift judges |
 | `run.py` | CLI, cost guard, report, JSON output |
-| `gate.py` | **CI gate** — enforces recall / over-fire / answer-lift thresholds on a `results.json` as an exit code (mock-aware; `--require-live` refuses synthetic). Self-checked by `test_gate.py` |
-| `.github/workflows/eval-gate.yml` | free mock plumbing on every push/PR + paid live validation on manual dispatch |
+| `gate.py` | **CI gate** — enforces recall / over-fire / answer-lift thresholds on a `results.json` as an exit code (mock-aware; `--require-live` refuses synthetic). Self-checked by `test_gate.py`. Wire it into CI with the example workflow in [The CI gate](#the-ci-gate-the-regression-guard) |
 | `ports/langgraph_crew.py` | **framework port** — the same crew on a LangGraph `StateGraph` (reuses `crew.py`'s nodes verbatim; offline + `--live`). Proves the node drops into a real orchestrator unchanged |
 | `ports/openai_agents_crew.py` | **framework port** — the same node on the OpenAI Agents SDK; an OpenAI model orchestrates and reaches for the Chart Library `function_tool`s (cross-vendor receipt). Offline constructs the `Agent`; `--live` runs the model loop |
 | `ports/claude_agent_crew.py` | **framework port** — Chart Library as an in-process MCP server to a Claude agent (`create_sdk_mcp_server` + `@tool`); the closest port to the real product. Offline constructs the server + options; `--live` runs the agent |
@@ -185,9 +259,11 @@ edges (run `python test_gate.py`).
 * A single judge model has its own biases; treat the A/B as directional and
   consider a second judge before leaning on it for marketing.
 
-## If Phase 0 says GO
+## What's here, and what's next
 
-Phase 1: build the full 7-specialist research-crew repo (runnable <5 min) with
-this eval baked in as a CI gate. Phase 2: port the orchestrator to LangGraph and
-the OpenAI Agents SDK against the same MCP node. Phase 3: distribution. If Phase 0
-says the agent ignores us or doesn't answer better — we face that first.
+Phase 0 passed — the orchestrator reaches for the node and answers better with it —
+so this repo ships the proof, not just the test: the reference crew (`crew.py`,
+Phase 1) and three framework ports — LangGraph, the OpenAI Agents SDK, and the
+Claude Agent SDK (Phase 2) — all reusing the same validated node. What's left is
+**Phase 3: distribution**. The eval harness stays in the repo so you (or a CI gate)
+can re-run the receipt any time.
