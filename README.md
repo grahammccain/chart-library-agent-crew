@@ -15,6 +15,11 @@ better when it does. The harness ships alongside the crew so you can re-run the
 receipt yourself. It is *not* a framework: our node drops into whatever
 orchestrator you already use.
 
+> **The writeup:** the rationale behind this repo is on the Chart Library blog —
+> start with **[How to Build a Market-Research Agent Crew in 2026](https://chartlibrary.io/blog/market-research-agent-crew-2026)**
+> (frameworks, data costs, and the missing primitive). Per-post links are in
+> [Further reading](#further-reading).
+
 ## Why this exists
 
 We are the *calibrated historical-analog* slot in a multi-agent trading stack —
@@ -106,6 +111,10 @@ honestly, and a pure-technical question (`AAPL's RSI(14)?`) never touches it. (L
 orchestration is graph-structural, so its offline run is a full end-to-end; the two
 model-driven SDKs run the same canned path offline and construct their agent/MCP wiring
 for free — the paid `--live` run is what exercises each model's own tool-selection loop.)
+
+> **Port-by-port walkthrough:** [How to Add a Stock Base-Rate MCP Node to LangGraph,
+> the OpenAI Agents SDK, and the Claude Agent SDK](https://chartlibrary.io/blog/stock-mcp-node-langgraph-openai-claude)
+> walks through each of the three ports above, with the code.
 
 ## Run the harness (the receipt)
 
@@ -264,6 +273,15 @@ jobs:
 Phase 0 passed — the orchestrator reaches for the node and answers better with it —
 so this repo ships the proof, not just the test: the reference crew (`crew.py`,
 Phase 1) and three framework ports — LangGraph, the OpenAI Agents SDK, and the
-Claude Agent SDK (Phase 2) — all reusing the same validated node. What's left is
-**Phase 3: distribution**. The eval harness stays in the repo so you (or a CI gate)
-can re-run the receipt any time.
+Claude Agent SDK (Phase 2) — all reusing the same validated node. The eval harness
+stays in the repo so you (or a CI gate) can re-run the receipt any time.
+
+## Further reading
+
+The design decisions behind this crew are written up on the Chart Library blog:
+
+* [How to Build a Market-Research Agent Crew in 2026](https://chartlibrary.io/blog/market-research-agent-crew-2026) — the overview: crew anatomy, frameworks, and the missing primitive.
+* [How to Add a Stock Base-Rate MCP Node to LangGraph, the OpenAI Agents SDK, and the Claude Agent SDK](https://chartlibrary.io/blog/stock-mcp-node-langgraph-openai-claude) — the port-by-port walkthrough for `ports/`.
+* [What Does It Cost to Build an AI Trading Agent in 2026?](https://chartlibrary.io/blog/ai-trading-agent-data-cost-2026) — the specialist data-stack budget, and which lanes are free.
+* [The Oracle Fallacy](https://chartlibrary.io/blog/oracle-fallacy-trading-agent-backtest) — why a backtest flatters a trading agent, and what calibrated base rates fix.
+* [Technical Analysis vs. Historical Base Rates](https://chartlibrary.io/blog/technical-analysis-vs-base-rates) — the boundary this crew draws between the live-TA node and the base-rate node.
