@@ -1,0 +1,63 @@
+name: chartlibrary eval gate
+
+# Two gates over the Phase 0 harness:
+#   * plumbing   - FREE mock run on every push/PR. Proves the harness + metrics +
+#                  gate all execute end-to-end. Its numbers are SYNTHETIC (not a
+#                  verdict) - gate.py treats a mock file as a plumbing check only.
+#   * validation - PAID live run, MANUAL trigger only (workflow_dispatch). Real
+#                  Anthropic tool-selection; enforces the GO thresholds on real
+#                  numbers via `gate.py --require-live`. Needs the ANTHROPIC_API_KEY
+#                  repo secret.
+#
+# Deliberately NO `schedule:` - live runs spend money, so each paid run stays a
+# human decision (matches the repo's cost-gate posture). Add a schedule later only
+# if a recurring public receipt is wanted.
+#
+# NOTE: paths assume the harness lives at the repo root (current layout). If the
+# Step-5 repo reorg moves it under eval/, set `working-directory: eval` on the jobs.
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  plumbing:
+    name: plumbing (free, mock, synthetic)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: gate self-check
+        run: python test_gate.py
+      - name: run harness (mock, free)
+        run: python run.py --mode mock --desc v2 --loadout both --ab --out results.json
+      - name: gate (plumbing only)
+        run: python gate.py results.json
+
+  validation:
+    name: validation (paid, live, real numbers)
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: run harness (live, paid)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: python run.py --mode live --desc v2 --loadout 7 --ab --yes --out results.json
+      - name: gate (enforce live thresholds)
+        run: python gate.py results.json --require-live
+      - name: upload receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-receipt
+          path: results.json
