@@ -16,3 +16,5 @@ results_*.json
 real_ab*.json
 crew_smoke.json
 *_chaining_*.json
+# receipt-ablation eval dumps (JSON covered above; markdown summary is also a dump)
+results_receipt_ablation.md
