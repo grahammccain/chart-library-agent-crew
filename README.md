@@ -144,6 +144,41 @@ Useful flags: `--orchestrator-model` (default `claude-sonnet-4-6`),
 `--judge-model` (default `claude-haiku-4-5-20251001`), `--limit N`,
 `--out results.json`.
 
+## Receipt-ablation eval (does the receipt itself change reasoning?)
+
+`receipt_ablation.py` answers a narrower, harder question than the with-vs-without
+A/B above: **holding the toolkit fixed, does the calibration receipt change the
+agent's reasoning quality?** Both arms use the *same* `chartlibrary_cohort_analyze`
+tool; the only delta is a thin response filter (`strip_receipt`) that deletes
+exactly the receipt keys — the top-level `calibration` (the split-conformal 80%
+band + empirical coverage + `calibration_n`) and `provenance` (the attribution
+string) — on Arm B. The agent still gets the full outcome distribution, feature
+importance, regime stratification and risk profile on both arms; it loses *only*
+the receipt.
+
+A blind dual-judge scores eight reasoning dimensions — the six prior plus two new
+ones the receipt should move: **confidence-qualification** (does the answer
+correctly qualify its confidence?) and **weak-comp-set flagging** (does it
+flag/refuse when the cohort is thin?). Judges never learn which arm is which.
+**Predictions and honest-outcome handling are pre-registered** and printed in the
+report header: the receipt arm is predicted to win the two qualification
+dimensions, parity is expected on breadth, and *either* outcome is publishable
+(receipt-wins → a marketing number; parity/loss → reweight toward human-facing
+receipt surfaces). No number may be cited until a live run.
+
+```bash
+# free, offline end-to-end (50 subjects across 50 distinct anchor dates; SYNTHETIC):
+python receipt_ablation.py --mode mock
+
+# paid, real — prints the estimated cost (~$10-30) and refuses to spend without --yes:
+python receipt_ablation.py --mode live --yes --env-file .env --real-chartlibrary
+```
+
+Writes `results_receipt_ablation.json` + a `…​.md` summary. Useful flags:
+`--judge-model` / `--judge-model-2` (dual blind judges, default haiku + opus),
+`--real-chartlibrary` (live cohort pulls instead of fixtures, for the paid run),
+`--limit N`.
+
 ## The CI gate (the regression guard)
 
 `gate.py` turns the GO thresholds into an enforced exit code, so a regression
@@ -254,6 +289,8 @@ jobs:
 | `harness.py` | neutral orchestrator loop; mock + live backends behind one `Turn` |
 | `evaluate.py` | selection metrics + with/without answer-lift judges |
 | `run.py` | CLI, cost guard, report, JSON output |
+| `receipt_ablation.py` | **receipt-ablation eval** — same toolkit both arms; a thin `strip_receipt` proxy removes only the `calibration` + `provenance` receipt keys on Arm B. Blind dual-judge over 8 dimensions (incl. confidence-qualification + weak-comp-set flagging); pre-registered predictions; mock e2e free, live prints cost. Tested by `test_receipt_ablation.py` |
+| `receipt_subjects.py` | 50 anchored subjects (15 reused for comparability + 35 fresh) spanning 50 distinct anchor dates, incl. deliberately thin names for the weak-comp-set dimension |
 | `gate.py` | **CI gate** — enforces recall / over-fire / answer-lift thresholds on a `results.json` as an exit code (mock-aware; `--require-live` refuses synthetic). Self-checked by `test_gate.py`. Wire it into CI with the example workflow in [The CI gate](#the-ci-gate-the-regression-guard) |
 | `ports/langgraph_crew.py` | **framework port** — the same crew on a LangGraph `StateGraph` (reuses `crew.py`'s nodes verbatim; offline + `--live`). Proves the node drops into a real orchestrator unchanged |
 | `ports/openai_agents_crew.py` | **framework port** — the same node on the OpenAI Agents SDK; an OpenAI model orchestrates and reaches for the Chart Library `function_tool`s (cross-vendor receipt). Offline constructs the `Agent`; `--live` runs the model loop |
